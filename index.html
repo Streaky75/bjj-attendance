@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jiu-Jitsu Attendance</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #0d0d0d;
+    color: #e8e8e8;
+    margin: 0;
+    padding: 20px;
+    text-align: center;
+  }
+  h1 {
+    font-size: 26px;
+    color: #00d4aa;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-size: 20px;
+    margin-top: 30px;
+    margin-bottom: 10px;
+    color: #ffd24c;
+  }
+  .btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 12px auto;
+    padding: 14px 18px;
+    width: 92%;
+    max-width: 420px;
+    font-size: 18px;
+    color: #000;
+    background: #00d4aa;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: bold;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .btn:hover {
+    background: #00b38c;
+  }
+  .toggle-btn {
+    padding: 10px 16px;
+    margin: 10px;
+    border-radius: 8px;
+    background: #444;
+    color: white;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .toggle-btn:hover {
+    background: #666;
+  }
+  .log-entry {
+    margin: 6px 0;
+  }
+  #setup-page, #stats-page {
+    display: none;
+  }
+  .setup-form {
+    max-width: 400px;
+    margin: 40px auto;
+    background: #1a1a1a;
+    padding: 30px;
+    border-radius: 12px;
+    border: 2px solid #00d4aa;
+  }
+  .setup-form input {
+    width: calc(100% - 24px);
+    padding: 12px;
+    margin: 10px 0;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #2a2a2a;
+    color: #e8e8e8;
+  }
+  .setup-form button {
+    width: 100%;
+    padding: 14px;
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #000;
+    background: #00d4aa;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .setup-form button:hover {
+    background: #00b38c;
+  }
+  .user-info {
+    background: #1a1a1a;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+  .reset-btn {
+    background: #d44;
+    font-size: 14px;
+    padding: 8px 14px;
+  }
+  .reset-btn:hover {
+    background: #b33;
+  }
+</style>
+
+<script>
+// ------------------------------
+// User Setup & Management
+// ------------------------------
+function checkUserSetup() {
+    const userData = JSON.parse(localStorage.getItem("userInfo") || "null");
+    
+    if (userData && userData.name && userData.email) {
+        // User is set up - show main page
+        showMain();
+        displayUserInfo(userData);
+        generateClassButtons(userData);
+    } else {
+        // First time - show setup
+        showSetup();
+    }
+}
+
+function saveUserInfo() {
+    const name = document.getElementById("userName").value.trim();
+    const email = document.getElementById("userEmail").value.trim();
+    
+    if (!name || !email) {
+        alert("Please enter both name and email");
+        return;
+    }
+    
+    const userData = { name, email };
+    localStorage.setItem("userInfo", JSON.stringify(userData));
+    
+    displayUserInfo(userData);
+    generateClassButtons(userData);
+    showMain();
+}
+
+function displayUserInfo(userData) {
+    const infoDiv = document.getElementById("user-info");
+    infoDiv.innerHTML = `
+        <strong>Logged in as:</strong> ${userData.name}<br>
+        <small>${userData.email}</small>
+        <button class="toggle-btn reset-btn" onclick="resetUser()">Change User</button>
+    `;
+}
+
+function generateClassButtons(userData) {
+    const container = document.getElementById("class-buttons");
+    const classes = [
+        { emoji: "🥋", name: "Adult Advanced", param: "Adult%20Advanced" },
+        { emoji: "🧠", name: "Adult Intermediate", param: "Adult%20Intermediate" },
+        { emoji: "☀️", name: "Morning Class", param: "Adult%20Morning%20Class" },
+        { emoji: "🤼", name: "NoGi", param: "Adult%20NOGI" },
+        { emoji: "🏆", name: "Competition Class", param: "Competition%20class" },
+        { emoji: "🐯", name: "Junior Grapplers", param: "Junior%20Grapplers" },
+        { emoji: "🎯", name: "Private Lesson", param: "Private%20lesson" }
+    ];
+    
+    const encodedName = encodeURIComponent(userData.name);
+    
+    container.innerHTML = classes.map(cls => {
+        const url = `https://docs.google.com/forms/d/e/1FAIpQLScduYrHvB6E6KJwzUijnkhuWX3o2K14hsE6hSri_ZUwc0athA/viewform?usp=pp_url&entry.1282538522=${encodedName}&entry.1421475455=${cls.param}`;
+        
+        return `
+            <a class="btn" href="${url}" onclick="logAttendance('${userData.name}','${cls.name}')">
+                ${cls.emoji} ${cls.name}
+            </a>
+        `;
+    }).join('');
+}
+
+function resetUser() {
+    if (confirm("This will clear your saved info. Continue?")) {
+        localStorage.removeItem("userInfo");
+        showSetup();
+    }
+}
+
+// ------------------------------
+// Attendance Logging Functions
+// ------------------------------
+function logAttendance(name, session) {
+    const key = "attendanceLog";
+    let logs = JSON.parse(localStorage.getItem(key) || "[]");
+
+    logs.push({
+        name,
+        session,
+        date: new Date().toLocaleString()
+    });
+
+    localStorage.setItem(key, JSON.stringify(logs));
+    updateStats();
+}
+
+function updateStats() {
+    const logs = JSON.parse(localStorage.getItem("attendanceLog") || "[]");
+    const userData = JSON.parse(localStorage.getItem("userInfo") || "{}");
+    
+    // Filter logs for current user
+    const myLogs = logs.filter(l => l.name === userData.name);
+    const stats = {};
+
+    myLogs.forEach(l => {
+        stats[l.session] = (stats[l.session] || 0) + 1;
+    });
+
+    let html = "";
+    for (let entry in stats) {
+        html += `<div class="log-entry">${entry}: <strong>${stats[entry]}</strong></div>`;
+    }
+
+    document.getElementById("stats-content").innerHTML = html || "No attendance logged yet.";
+}
+
+// ------------------------------
+// Page Navigation
+// ------------------------------
+function showSetup() {
+    document.getElementById("setup-page").style.display = "block";
+    document.getElementById("main-page").style.display = "none";
+    document.getElementById("stats-page").style.display = "none";
+}
+
+function showMain() {
+    document.getElementById("main-page").style.display = "block";
+    document.getElementById("setup-page").style.display = "none";
+    document.getElementById("stats-page").style.display = "none";
+}
+
+function showStats() {
+    document.getElementById("stats-page").style.display = "block";
+    document.getElementById("main-page").style.display = "none";
+    document.getElementById("setup-page").style.display = "none";
+    updateStats();
+}
+
+// Check user setup on page load
+window.onload = checkUserSetup;
+</script>
+
+</head>
+<body>
+
+<h1>Jiu-Jitsu Attendance</h1>
+
+<!-- ------------------------------- -->
+<!--       SETUP PAGE (First Time)   -->
+<!-- ------------------------------- -->
+<div id="setup-page">
+    <div class="setup-form">
+        <h2 style="color: #00d4aa; margin-top: 0;">First Time Setup</h2>
+        <p>Enter your details once - they'll be saved for quick access</p>
+        
+        <input type="text" id="userName" placeholder="Your Full Name" />
+        <input type="email" id="userEmail" placeholder="Your Email" />
+        
+        <button onclick="saveUserInfo()">Save & Continue</button>
+    </div>
+</div>
+
+<!-- ------------------------------- -->
+<!--       MAIN PAGE                 -->
+<!-- ------------------------------- -->
+<div id="main-page">
+    <div class="user-info" id="user-info"></div>
+    
+    <button class="toggle-btn" onclick="showStats()">📊 View My Stats</button>
+    
+    <div class="section-title">Select Your Class</div>
+    <div id="class-buttons"></div>
+</div>
+
+<!-- ------------------------------- -->
+<!--       STATS PAGE                -->
+<!-- ------------------------------- -->
+<div id="stats-page">
+  <h2>📊 Your Attendance Stats</h2>
+  <div id="stats-content"></div>
+  <br>
+  <button class="toggle-btn" onclick="showMain()">⬅ Back</button>
+</div>
+
+</body>
+</html>
