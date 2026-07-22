@@ -17,6 +17,11 @@
   h1 {
     font-size: 26px;
     color: #00d4aa;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: #888;
     margin-bottom: 20px;
   }
   .section-title {
@@ -36,14 +41,20 @@
     font-size: 18px;
     color: #000;
     background: #00d4aa;
+    border: none;
     border-radius: 12px;
     text-decoration: none;
     font-weight: bold;
     gap: 10px;
     cursor: pointer;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
   }
   .btn:hover {
     background: #00b38c;
+  }
+  .btn:active {
+    transform: scale(0.98);
   }
   .toggle-btn {
     padding: 10px 16px;
@@ -116,9 +127,37 @@
   .reset-btn:hover {
     background: #b33;
   }
+  #toast {
+    position: fixed;
+    bottom: 26px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #00d4aa;
+    color: #000;
+    padding: 14px 22px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 1000;
+    max-width: 90%;
+  }
+  #toast.show {
+    opacity: 1;
+  }
 </style>
 
 <script>
+// ------------------------------
+// Google Form backend config  (verified against the LIVE form July 2026)
+// ------------------------------
+const FORM_VIEW = "https://docs.google.com/forms/d/e/1FAIpQLScduYrHvB6E6KJwzUijnkhuWX3o2K14hsE6hSri_ZUwc0athA/viewform";
+const NAME_ENTRY = "entry.1706830227";   // "First and Last Name"
+const DIVISION_ENTRY = "entry.1992140883"; // "Please select your division."
+
 // ------------------------------
 // Attendees (fixed list)
 // ------------------------------
@@ -148,7 +187,7 @@ function renderUserSelector() {
 }
 
 // ------------------------------
-// Classes
+// Classes  (must match the form's division options exactly)
 // ------------------------------
 const CLASSES = [
     { emoji: "🧒", name: "Resilient Kids" },
@@ -157,9 +196,7 @@ const CLASSES = [
     { emoji: "🧠", name: "Adult Intermediate" },
     { emoji: "🥋", name: "Adult Advanced" },
     { emoji: "☀️", name: "Adult Morning Class" },
-    { emoji: "🔥", name: "NOGI Pro" },
-    { emoji: "🤼", name: "NOGI Fundamentals" },
-    { emoji: "🥷", name: "Judo" },
+    { emoji: "🤼", name: "NOGI" },
     { emoji: "🎯", name: "Private lesson" },
     { emoji: "🏆", name: "Competition class" }
 ];
@@ -167,19 +204,19 @@ const CLASSES = [
 function generateClassButtons() {
     const container = document.getElementById("class-buttons");
     const user = getCurrentUser();
-    const encodedName = encodeURIComponent(user);
+    const encName = encodeURIComponent(user);
 
     container.innerHTML = CLASSES.map(cls => {
-        const encodedClass = encodeURIComponent(cls.name);
-        const url = `https://docs.google.com/forms/d/e/1FAIpQLScduYrHvB6E6KJwzUijnkhuWX3o2K14hsE6hSri_ZUwc0athA/viewform?usp=pp_url&entry.1282538522=${encodedName}&entry.1421475455=${encodedClass}`;
-
-        // Safely escape names for the inline onclick handler
+        const encDiv = encodeURIComponent(cls.name);
+        // Pre-filled Google Form link: name + division filled in for you.
+        const url = FORM_VIEW + "?usp=pp_url"
+            + "&" + NAME_ENTRY + "=" + encName
+            + "&" + DIVISION_ENTRY + "=" + encDiv;
         const safeUser = user.replace(/'/g, "\\'");
         const safeClass = cls.name.replace(/'/g, "\\'");
-
         return `
             <a class="btn" href="${url}" target="_blank" rel="noopener"
-               onclick="logAttendance('${safeUser}','${safeClass}')">
+               onclick="recordAttendance('${safeUser}','${safeClass}')">
                 ${cls.emoji} ${cls.name}
             </a>
         `;
@@ -187,19 +224,38 @@ function generateClassButtons() {
 }
 
 // ------------------------------
-// Attendance Logging
+// Attendance recording
+// Tap = saved locally (backup) + opens the pre-filled gym form.
+// On the form: check the division is selected, enter your email, tap Submit.
 // ------------------------------
-function logAttendance(name, session) {
+function recordAttendance(name, division) {
+    logLocal(name, division);   // keep a local backup / stats copy
+    showToast(division + " — form opening, tap Submit to finish");
+}
+
+function logLocal(name, session) {
     const key = "attendanceLog";
     let logs = JSON.parse(localStorage.getItem(key) || "[]");
     logs.push({
-        name,
-        session,
+        name: name,
+        session: session,
         date: new Date().toLocaleString()
     });
     localStorage.setItem(key, JSON.stringify(logs));
 }
 
+let toastTimer;
+function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
+}
+
+// ------------------------------
+// Stats
+// ------------------------------
 function updateStats() {
     const logs = JSON.parse(localStorage.getItem("attendanceLog") || "[]");
     let html = "";
@@ -215,7 +271,6 @@ function updateStats() {
         if (Object.keys(stats).length === 0) {
             personHtml += `<div class="log-entry" style="color:#888;">No attendance logged yet.</div>`;
         } else {
-            // Sort sessions by count descending
             const sorted = Object.entries(stats).sort((a, b) => b[1] - a[1]);
             for (const [s, c] of sorted) {
                 personHtml += `<div class="log-entry">${s}: <strong>${c}</strong></div>`;
@@ -229,9 +284,10 @@ function updateStats() {
 }
 
 function clearLogs() {
-    if (confirm("This will clear ALL attendance logs for both Greg and Harry. Continue?")) {
+    if (confirm("This will clear ALL local attendance logs for both Greg and Harry. Continue?")) {
         localStorage.removeItem("attendanceLog");
         updateStats();
+        document.getElementById("backup-content").innerHTML = "";
     }
 }
 
@@ -316,6 +372,7 @@ window.onload = function() {
 <body>
 
 <h1>Jiu-Jitsu Attendance</h1>
+<div class="subtitle">Tap a class → the form opens with your name &amp; class filled → enter your email &amp; tap Submit.</div>
 
 <!-- ------------------------------- -->
 <!--       MAIN PAGE                 -->
@@ -341,6 +398,8 @@ window.onload = function() {
     <button class="toggle-btn" onclick="showMain()">⬅ Back</button>
     <button class="toggle-btn reset-btn" onclick="clearLogs()">🗑 Clear Logs</button>
 </div>
+
+<div id="toast"></div>
 
 </body>
 </html>
