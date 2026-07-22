@@ -158,6 +158,10 @@ const FORM_VIEW = "https://docs.google.com/forms/d/e/1FAIpQLScduYrHvB6E6KJwzUijn
 const NAME_ENTRY = "entry.1706830227";   // "First and Last Name"
 const DIVISION_ENTRY = "entry.1992140883"; // "Please select your division."
 
+// Email can't be pre-filled (Google's built-in email question), so we copy it
+// to the clipboard on tap — just paste it into the form's Email box.
+const EMAIL = "gregstreatfield@gmail.com";
+
 // ------------------------------
 // Attendees (fixed list)
 // ------------------------------
@@ -230,7 +234,34 @@ function generateClassButtons() {
 // ------------------------------
 function recordAttendance(name, division) {
     logLocal(name, division);   // keep a local backup / stats copy
-    showToast(division + " — form opening, tap Submit to finish");
+    const copied = copyEmail();
+    showToast(copied
+        ? "📋 Email copied — paste it into the form, then Submit"
+        : division + " — form opening, tap Submit to finish");
+}
+
+// Copy the email to the clipboard so it can be pasted into the form's Email box.
+function copyEmail() {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(EMAIL);
+            return true;
+        }
+    } catch (e) { /* fall through */ }
+    try {
+        const ta = document.createElement("textarea");
+        ta.value = EMAIL;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        return true;
+    } catch (e) {
+        return false;
+    }
 }
 
 function logLocal(name, session) {
@@ -372,7 +403,7 @@ window.onload = function() {
 <body>
 
 <h1>Jiu-Jitsu Attendance</h1>
-<div class="subtitle">Tap a class → the form opens with your name &amp; class filled → enter your email &amp; tap Submit.</div>
+<div class="subtitle">Tap a class → form opens with name &amp; class filled, email copied → paste email &amp; tap Submit.</div>
 
 <!-- ------------------------------- -->
 <!--       MAIN PAGE                 -->
